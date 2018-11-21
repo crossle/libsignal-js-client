@@ -1,0 +1,13 @@
+{
+  "name": "libsignal-js-client",
+  "version": "0.10",
+  "description": "libsignal-js-client",
+  "main": "index.js",
+  "repository": "https://github.com/crossle/libsignal-js-client",
+  "author": "Crossle Song <crosslesong@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "buffer": "^5.2.1",
+    "lovefield": "^2.1.12"
+  }
+}
