@@ -2,37 +2,48 @@
 const go = new Go();
 let mod, inst;
 var signalDatabase = null;
+databaseConnect()
 WebAssembly.instantiateStreaming(fetch("libsignal.wasm"), go.importObject).then(async (result) => {
     mod = result.module;
     inst = result.instance;
-    databaseConnect()
     await go.run(inst)
 });
 
-function getIdentityKeyPairCallback(pub, priv, regId) {
-    const indentityTable = signalDatabase.getSchema().table("identities");
-    const row = indentityTable.createRow({
+function getIdentityKeyPair() {
+    k = getIdentityKeyPairFromGo()
+    const identityTable = signalDatabase.getSchema().table("identities");
+    const row = identityTable.createRow({
       address: "-1",
-      registration_id: regId,
-      public_key: pub,
-      private_key: priv
+      registration_id: k.regId,
+      public_key: k.pub,
+      private_key: k.priv
     });
 
     signalDatabase.insertOrReplace()
-      .into(indentityTable)
+      .into(identityTable)
       .values([row])
       .exec()
       .then(function(rows) {});
 }
 
-function getIdentityKeyPairFromStore() {
-    return [pub, priv].join();
+function getIdentityKeyPairCallback(pub, priv, regId) {
+
 }
 
-function generatePreKeysCallback(preKeysStr) {
+function getIdentityKeyFromStore(address) {
+    const identityTable = signalDatabase.getSchema().table("identities");
+    const query = signalDatabase.select().from(identityTable).where(identityTable.address.eq(address));
+    return query.exec().then(function (rows) {
+        if (rows.length == 1) {
+            return JSON.stringify(rows[0])
+        }
+    });
+}
+
+function generatePreKeys() {
+    const preKeysStr = generatePreKeysFromGo(1, 100)
     const preKeys = preKeysStr.split(","); 
     const preKeysTable = signalDatabase.getSchema().table("prekeys");
-    console.log(preKeys.length)
     var rows = [];
     for (var i = 0; i < preKeys.length; i++) {
         const preKey = preKeys[i]
@@ -55,22 +66,19 @@ function hexToBytes(hex) {
     return bytes;
 }
 
-function generateSignedPreKeyCallback(id, serialize) {
+function generateSignedPreKey() {
+    const identityTable = signalDatabase.getSchema().table("identities");
     const signedPreKeyTable = signalDatabase.getSchema().table("signed_prekeys"); 
-    const row = signedPreKeyTable.createRow({
-        prekey_id: id,
-        record: serialize
-    });
-    signalDatabase.insert().into(signedPreKeyTable).values([row]).exec()
-}
-
-function goGenerateSignedPreKey() {
-    const indentityTable = signalDatabase.getSchema().table("identities");
-    const query = signalDatabase.select().from(indentityTable).where(indentityTable.address.eq('-1'));
+    const query = signalDatabase.select().from(identityTable).where(identityTable.address.eq('-1'));
     query.exec().then(function (rows) {
         const pub = rows[0].public_key
         const priv = rows[0].private_key
-        generateSignedPreKey(pub, priv)	
+        result = generateSignedPreKeyFromGo(pub, priv)	
+        const row = signedPreKeyTable.createRow({
+            prekey_id: result.id,
+            record: result.record
+        });
+        signalDatabase.insert().into(signedPreKeyTable).values([row]).exec()
     });
 }
 
